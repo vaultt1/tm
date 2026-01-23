@@ -2,7 +2,6 @@
 
 This repository contains a simple Task Management Application with a Node/Express backend and a React frontend, fully containerized with Docker and Kubernetes support.
 
-> Quick note: these instructions work on macOS, Linux, and Windows (PowerShell).
 
 ## Prerequisites ✅
 
