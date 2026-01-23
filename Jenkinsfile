@@ -2,15 +2,13 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_USER    = "someone15me"
-        K8S_NAMESPACE  = "task-management"
-        K8S_DEPLOYMENT = "task-management-app"
-    }
+        // Docker
+        DOCKER_USER     = "someone15me"
 
-    triggers {
-        pollSCM('H/2 * * * *') // Example: Polls every 5 minutes
+        // K8s
+        K8S_NAMESPACE   = "task-management"
+        K8S_DEPLOYMENT  = "task-management-app"
     }
-
 
     stages {
 
@@ -21,20 +19,19 @@ pipeline {
             }
         }
 
-        stage('Set Image Tags') {
+        stage('Generate Image Tags') {
             steps {
                 script {
-                    // Use Jenkins build number for uniqueness
-                    BUILD_TAG = "${env.BUILD_NUMBER}"
+                    // Jenkins build number + short Git SHA
+                    GIT_SHA = sh(returnStdout: true, script: 'git rev-parse --short HEAD').trim()
+                    BACKEND_TAG = "backend-${BUILD_NUMBER}-${GIT_SHA}"
+                    FRONTEND_TAG = "frontend-${BUILD_NUMBER}-${GIT_SHA}"
 
-                    // Optional: include short git commit SHA for traceability
-                    GIT_SHA = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
+                    env.BACKEND_IMAGE = "${DOCKER_USER}/dp:${BACKEND_TAG}"
+                    env.FRONTEND_IMAGE = "${DOCKER_USER}/dp:${FRONTEND_TAG}"
 
-                    BACKEND_IMAGE  = "someone15me/dp:backend-${BUILD_TAG}-${GIT_SHA}"
-                    FRONTEND_IMAGE = "someone15me/dp:frontend-${BUILD_TAG}-${GIT_SHA}"
-
-                    echo "➡️ Backend Image: ${BACKEND_IMAGE}"
-                    echo "➡️ Frontend Image: ${FRONTEND_IMAGE}"
+                    echo "Backend Image: ${BACKEND_IMAGE}"
+                    echo "Frontend Image: ${FRONTEND_IMAGE}"
                 }
             }
         }
@@ -59,7 +56,7 @@ pipeline {
             }
         }
 
-        stage('Push Images to DockerHub') {
+        stage('Push Images') {
             steps {
                 sh "docker push ${BACKEND_IMAGE}"
                 sh "docker push ${FRONTEND_IMAGE}"
@@ -70,21 +67,22 @@ pipeline {
             steps {
                 withCredentials([file(credentialsId: 'KUBECONFIG_FILE', variable: 'KUBECONFIG')]) {
                     sh """
-                        kubectl set image deployment/${K8S_DEPLOYMENT} \
-                          backend=${BACKEND_IMAGE} \
-                          frontend=${FRONTEND_IMAGE} \
-                          -n ${K8S_NAMESPACE}
+                    kubectl set image deployment/${K8S_DEPLOYMENT} \
+                        backend=${BACKEND_IMAGE} \
+                        frontend=${FRONTEND_IMAGE} \
+                        -n ${K8S_NAMESPACE}
 
-                        kubectl rollout status deployment/${K8S_DEPLOYMENT} -n ${K8S_NAMESPACE}
+                    kubectl rollout status deployment/${K8S_DEPLOYMENT} -n ${K8S_NAMESPACE}
                     """
                 }
             }
         }
+
     }
 
     post {
         success {
-            echo "✅ CI/CD Pipeline completed successfully!"
+            echo "✅ Pipeline completed successfully!"
         }
         failure {
             echo "❌ Pipeline failed. Check logs."
