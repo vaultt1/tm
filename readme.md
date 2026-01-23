@@ -34,7 +34,7 @@ cd ..
 ### Step 2: Login to Docker Hub
 
 ```bash
-docker login -u someone15me -p Ditiss123
+docker login -u <username> -p <pass>
 ```
 
 ### Step 3: Push Images to Docker Hub
