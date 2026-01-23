@@ -4,10 +4,11 @@ pipeline {
     environment {
         // Docker
         DOCKER_USER     = "someone15me"
-        BACKEND_IMAGE   = "someone15me/dp:backend-latest"
-        FRONTEND_IMAGE  = "someone15me/dp:frontend-latest"
+        BUILD_TAG       = "${env.BUILD_NUMBER}"                  // unique tag per build
+        BACKEND_IMAGE   = "${DOCKER_USER}/dp:backend-${BUILD_TAG}"
+        FRONTEND_IMAGE  = "${DOCKER_USER}/dp:frontend-${BUILD_TAG}"
 
-        // K8s
+        // Kubernetes
         K8S_NAMESPACE   = "task-management"
         K8S_DEPLOYMENT  = "task-management-app"
     }
@@ -16,51 +17,50 @@ pipeline {
 
         stage('Checkout Source') {
             steps {
-                git branch: 'main',
-                    url: 'https://github.com/vaultt1/tm.git'
+                git branch: 'main', url: 'https://github.com/vaultt1/tm.git'
             }
         }
 
         stage('Build Backend Image') {
             steps {
-                sh '''
-                  docker build -t ${BACKEND_IMAGE} ./backend
-                '''
+                sh "docker build -t ${BACKEND_IMAGE} ./backend"
             }
         }
 
         stage('Build Frontend Image') {
             steps {
-                sh '''
-                  docker build -t ${FRONTEND_IMAGE} ./frontend
-                '''
+                sh "docker build -t ${FRONTEND_IMAGE} ./frontend"
             }
         }
 
         stage('Docker Login') {
             steps {
                 withCredentials([string(credentialsId: 'DOCKERHUB_TOKEN', variable: 'DOCKER_TOKEN')]) {
-                    sh '''
-                      echo $DOCKER_TOKEN | docker login -u ${DOCKER_USER} --password-stdin
-                    '''
+                    sh "echo $DOCKER_TOKEN | docker login -u ${DOCKER_USER} --password-stdin"
                 }
             }
         }
 
         stage('Push Images to DockerHub') {
             steps {
-                sh '''
-                  docker push ${BACKEND_IMAGE}
-                  docker push ${FRONTEND_IMAGE}
-                '''
+                sh "docker push ${BACKEND_IMAGE}"
+                sh "docker push ${FRONTEND_IMAGE}"
             }
         }
 
-        stage('restart service') {
+        stage('Deploy to Kubernetes') {
             steps {
                 withCredentials([file(credentialsId: 'KUBECONFIG_FILE', variable: 'KUBECONFIG')]) {
-                    sh 'kubectl set image deployment/task-management-app backend=someone15me/dp:backend-latest frontend=someone15me/dp:frontend-latest -n task-management'
-                    sh 'kubectl rollout status deployment/task-management-app -n task-management'
+                    sh """
+                        # Update deployment images
+                        kubectl set image deployment/${K8S_DEPLOYMENT} \
+                          backend=${BACKEND_IMAGE} \
+                          frontend=${FRONTEND_IMAGE} \
+                          -n ${K8S_NAMESPACE}
+
+                        # Wait for rollout to complete
+                        kubectl rollout status deployment/${K8S_DEPLOYMENT} -n ${K8S_NAMESPACE}
+                    """
                 }
             }
         }
