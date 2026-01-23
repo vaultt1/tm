@@ -2,90 +2,55 @@ pipeline {
     agent any
 
     environment {
-        // Docker
-        DOCKER_USER     = "someone15me"
-
-        // K8s
-        K8S_NAMESPACE   = "task-management"
-        K8S_DEPLOYMENT  = "task-management-app"
+        BACKEND_IMAGE = "someone15me/dp:backend"
+        FRONTEND_IMAGE = "someone15me/dp:frontend"
+        K8S_NAMESPACE = "task-management"
+        DEPLOYMENT_NAME = "task-management-app"
+        BUILD_TAG = "${env.BUILD_NUMBER}-${GIT_COMMIT.substring(0,7)}"
     }
 
     stages {
-
-        stage('Checkout Source') {
+        stage('Checkout') {
             steps {
-                git branch: 'main',
-                    url: 'https://github.com/vaultt1/tm.git'
+                checkout scm
             }
         }
 
-        stage('Generate Image Tags') {
+        stage('Build Docker Images') {
             steps {
-                script {
-                    // Jenkins build number + short Git SHA
-                    GIT_SHA = sh(returnStdout: true, script: 'git rev-parse --short HEAD').trim()
-                    BACKEND_TAG = "backend-${BUILD_NUMBER}-${GIT_SHA}"
-                    FRONTEND_TAG = "frontend-${BUILD_NUMBER}-${GIT_SHA}"
-
-                    env.BACKEND_IMAGE = "${DOCKER_USER}/dp:${BACKEND_TAG}"
-                    env.FRONTEND_IMAGE = "${DOCKER_USER}/dp:${FRONTEND_TAG}"
-
-                    echo "Backend Image: ${BACKEND_IMAGE}"
-                    echo "Frontend Image: ${FRONTEND_IMAGE}"
-                }
+                sh "docker build -t ${BACKEND_IMAGE}-${BUILD_TAG} ./Backend"
+                sh "docker build -t ${FRONTEND_IMAGE}-${BUILD_TAG} ./Frontend"
             }
         }
 
-        stage('Build Backend Image') {
+        stage('Push Docker Images') {
             steps {
-                sh "docker build -t ${BACKEND_IMAGE} ./Backend"
-            }
-        }
-
-        stage('Build Frontend Image') {
-            steps {
-                sh "docker build -t ${FRONTEND_IMAGE} ./Frontend"
-            }
-        }
-
-        stage('Docker Login') {
-            steps {
-                withCredentials([string(credentialsId: 'DOCKERHUB_TOKEN', variable: 'DOCKER_TOKEN')]) {
-                    sh "echo $DOCKER_TOKEN | docker login -u ${DOCKER_USER} --password-stdin"
-                }
-            }
-        }
-
-        stage('Push Images') {
-            steps {
-                sh "docker push ${BACKEND_IMAGE}"
-                sh "docker push ${FRONTEND_IMAGE}"
+                sh "docker push ${BACKEND_IMAGE}-${BUILD_TAG}"
+                sh "docker push ${FRONTEND_IMAGE}-${BUILD_TAG}"
             }
         }
 
         stage('Deploy to Kubernetes') {
             steps {
-                withCredentials([file(credentialsId: 'KUBECONFIG_FILE', variable: 'KUBECONFIG')]) {
-                    sh """
-                    kubectl set image deployment/${K8S_DEPLOYMENT} \
-                        backend=${BACKEND_IMAGE} \
-                        frontend=${FRONTEND_IMAGE} \
-                        -n ${K8S_NAMESPACE}
+                sh """
+                kubectl set image deployment/${DEPLOYMENT_NAME} \
+                  backend=${BACKEND_IMAGE}-${BUILD_TAG} \
+                  frontend=${FRONTEND_IMAGE}-${BUILD_TAG} \
+                  -n ${K8S_NAMESPACE}
 
-                    kubectl rollout status deployment/${K8S_DEPLOYMENT} -n ${K8S_NAMESPACE}
-                    """
-                }
+                # Wait until rollout is complete
+                kubectl rollout status deployment/${DEPLOYMENT_NAME} -n ${K8S_NAMESPACE}
+                """
             }
         }
-
     }
 
     post {
         success {
-            echo "✅ Pipeline completed successfully!"
+            echo "✅ Deployment completed with BUILD_TAG=${BUILD_TAG}"
         }
         failure {
-            echo "❌ Pipeline failed. Check logs."
+            echo "❌ Deployment failed!"
         }
     }
 }
