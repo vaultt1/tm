@@ -21,8 +21,8 @@ spec:
       # Backend Container
       # -----------------------------
       - name: backend
-        image: someone15me/dp:backend-${BUILD_TAG}
-        imagePullPolicy: IfNotPresent
+        image: someone15me/dp:backend-latest   # Jenkins will replace with versioned tag
+        imagePullPolicy: Always
         ports:
         - containerPort: 8082
           name: backend-port
@@ -48,8 +48,8 @@ spec:
       # Frontend Container
       # -----------------------------
       - name: frontend
-        image: someone15me/dp:frontend-${BUILD_TAG}
-        imagePullPolicy: IfNotPresent
+        image: someone15me/dp:frontend-latest   # Jenkins will replace with versioned tag
+        imagePullPolicy: Always
         ports:
         - containerPort: 3000
           name: frontend-port
@@ -64,6 +64,9 @@ spec:
             memory: "256Mi"
             cpu: "500m"
 
+      # -----------------------------
+      # Volumes
+      # -----------------------------
       volumes:
       - name: backend-data
         emptyDir: {}
