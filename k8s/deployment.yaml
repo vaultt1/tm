@@ -21,7 +21,7 @@ spec:
       # Backend Container
       # -----------------------------
       - name: backend
-        image: someone15me/dp:backend-{{BUILD_NUMBER}}-{{GIT_SHORT_SHA}}  # 🔹 Immutable tag per build
+        image: someone15me/dp:backend-{{BUILD_NUMBER}}-{{GIT_SHORT_SHA}}
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8082
@@ -48,7 +48,7 @@ spec:
       # Frontend Container
       # -----------------------------
       - name: frontend
-        image: someone15me/dp:frontend-{{BUILD_NUMBER}}-{{GIT_SHORT_SHA}}  # 🔹 Immutable tag per build
+        image: someone15me/dp:frontend-{{BUILD_NUMBER}}-{{GIT_SHORT_SHA}}
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 3000
@@ -64,9 +64,6 @@ spec:
             memory: "256Mi"
             cpu: "500m"
 
-      # -----------------------------
-      # Volumes
-      # -----------------------------
       volumes:
       - name: backend-data
         emptyDir: {}
