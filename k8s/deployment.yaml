@@ -16,9 +16,13 @@ spec:
         app: task-management
     spec:
       containers:
+
+      # -----------------------------
       # Backend Container
+      # -----------------------------
       - name: backend
         image: someone15me/dp:backend-latest
+        imagePullPolicy: Always   # 🔹 Always pull latest image
         ports:
         - containerPort: 8082
           name: backend-port
@@ -39,9 +43,13 @@ spec:
         volumeMounts:
         - name: backend-data
           mountPath: /app/data
+
+      # -----------------------------
       # Frontend Container
+      # -----------------------------
       - name: frontend
         image: someone15me/dp:frontend-latest
+        imagePullPolicy: Always   # 🔹 Always pull latest image
         ports:
         - containerPort: 3000
           name: frontend-port
@@ -55,6 +63,10 @@ spec:
           limits:
             memory: "256Mi"
             cpu: "500m"
+
+      # -----------------------------
+      # Volumes
+      # -----------------------------
       volumes:
       - name: backend-data
         emptyDir: {}
