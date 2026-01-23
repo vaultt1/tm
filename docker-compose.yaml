@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./Backend
+      dockerfile: Dockerfile
+    container_name: task-management-backend
+    ports:
+      - "8082:8082"
+    environment:
+      - NODE_ENV=production
+      - SERVER_PORT=8082
+      - FRONTEND_URL=*
+    volumes:
+      - backend-data:/app/data
+    networks:
+      - task-management-network
+
+  frontend:
+    build:
+      context: ./Frontend
+      dockerfile: Dockerfile
+      args:
+        - REACT_APP_BACKEND_URL=http://localhost:8082
+    container_name: task-management-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - task-management-network
+
+volumes:
+  backend-data:
+
+networks:
+  task-management-network:
+    driver: bridge
