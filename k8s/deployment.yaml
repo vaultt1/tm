@@ -21,8 +21,8 @@ spec:
       # Backend Container
       # -----------------------------
       - name: backend
-        image: someone15me/dp:backend-latest
-        imagePullPolicy: Always   # 🔹 Always pull latest image
+        image: someone15me/dp:backend-{{BUILD_NUMBER}}-{{GIT_SHORT_SHA}}  # 🔹 Immutable tag per build
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8082
           name: backend-port
@@ -48,8 +48,8 @@ spec:
       # Frontend Container
       # -----------------------------
       - name: frontend
-        image: someone15me/dp:frontend-latest
-        imagePullPolicy: Always   # 🔹 Always pull latest image
+        image: someone15me/dp:frontend-{{BUILD_NUMBER}}-{{GIT_SHORT_SHA}}  # 🔹 Immutable tag per build
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 3000
           name: frontend-port
