@@ -34,12 +34,20 @@ pipeline {
         stage('Deploy to Kubernetes') {
             steps {
                 sh """
-                kubectl set image deployment/${DEPLOYMENT_NAME} \
-                  backend=${BACKEND_IMAGE}-${BUILD_TAG} \
-                  frontend=${FRONTEND_IMAGE}-${BUILD_TAG} \
-                  -n ${K8S_NAMESPACE}
+                    # Ensure namespace exists
+                    kubectl apply -f k8s/namespace.yaml
 
-                kubectl rollout status deployment/${DEPLOYMENT_NAME} -n ${K8S_NAMESPACE}
+                    # Apply the deployment (create or update)
+                    kubectl apply -f k8s/deployment.yaml -n ${K8S_NAMESPACE}
+
+                    # Update images
+                    kubectl set image deployment/${DEPLOYMENT_NAME} \\
+                        backend=${BACKEND_IMAGE}-${BUILD_TAG} \\
+                        frontend=${FRONTEND_IMAGE}-${BUILD_TAG} \\
+                        -n ${K8S_NAMESPACE}
+
+                    # Wait for rollout
+                    kubectl rollout status deployment/${DEPLOYMENT_NAME} -n ${K8S_NAMESPACE}
                 """
             }
         }
