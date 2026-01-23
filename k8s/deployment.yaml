@@ -21,7 +21,7 @@ spec:
       # Backend Container
       # -----------------------------
       - name: backend
-        image: someone15me/dp:backend-{{BUILD_NUMBER}}-{{GIT_SHORT_SHA}}
+        image: someone15me/dp:backend-123-abcd123
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8082
@@ -48,7 +48,7 @@ spec:
       # Frontend Container
       # -----------------------------
       - name: frontend
-        image: someone15me/dp:frontend-{{BUILD_NUMBER}}-{{GIT_SHORT_SHA}}
+        image: someone15me/dp:frontend-123-abcd123
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 3000
