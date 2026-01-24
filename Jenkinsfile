@@ -50,6 +50,7 @@ pipeline {
                 ]) {
                     sh """
                         export KUBECONFIG=\$KUBECONFIG
+                        kubectl get nodes
                         kubectl apply -f k8s/namespace.yaml
                         kubectl apply -f k8s/deployment.yaml -n ${K8S_NAMESPACE}
                         kubectl set image deployment/${DEPLOYMENT_NAME} \
