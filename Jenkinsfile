@@ -50,15 +50,12 @@ pipeline {
                 ]) {
                     sh """
                         export KUBECONFIG=\$KUBECONFIG
-
                         kubectl apply -f k8s/namespace.yaml
                         kubectl apply -f k8s/deployment.yaml -n ${K8S_NAMESPACE}
-
                         kubectl set image deployment/${DEPLOYMENT_NAME} \
                             backend=${BACKEND_IMAGE}-${BUILD_TAG} \
                             frontend=${FRONTEND_IMAGE}-${BUILD_TAG} \
                             -n ${K8S_NAMESPACE}
-
                         kubectl rollout status deployment/${DEPLOYMENT_NAME} -n ${K8S_NAMESPACE}
                     """
                 }
@@ -69,7 +66,6 @@ pipeline {
             steps {
                 sleep(time: 1, unit: 'MINUTES')
                 sh "ip a"
-
                 withCredentials([
                     file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG')
                 ]) {
