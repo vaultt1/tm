@@ -26,10 +26,16 @@ pipeline {
 
         stage('Push Docker Images') {
             steps {
-                sh "docker push ${BACKEND_IMAGE}-${BUILD_TAG}"
-                sh "docker push ${FRONTEND_IMAGE}-${BUILD_TAG}"
-            }
+                withDockerRegistry(
+                credentialsId: 'dockerhub-creds',
+                url: 'https://index.docker.io/v1/'
+                ) {
+            sh "docker push ${BACKEND_IMAGE}-${BUILD_TAG}"
+            sh "docker push ${FRONTEND_IMAGE}-${BUILD_TAG}"
         }
+    }
+}
+
 
         stage('Deploy to Kubernetes') {
             steps {
@@ -62,3 +68,4 @@ pipeline {
         }
     }
 }
+
