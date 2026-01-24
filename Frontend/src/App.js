@@ -27,7 +27,7 @@ class App extends Component {
       dateInput: value
     }))
   }
-
+console.log("Changed!");
   componentDidMount = async () => {
     const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/printTable`, {
       method: "GET", // *GET, POST, PUT, DELETE, etc.
