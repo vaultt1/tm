@@ -25,13 +25,18 @@ pipeline {
         }
 
         stage('Push Docker Images') {
-            steps {
-                withDockerRegistry(
-                credentialsId: 'dockerhub-creds',
-                url: 'https://index.docker.io/v1/'
-                ) {
-            sh "docker push ${BACKEND_IMAGE}-${BUILD_TAG}"
-            sh "docker push ${FRONTEND_IMAGE}-${BUILD_TAG}"
+    steps {
+        withCredentials([usernamePassword(
+            credentialsId: 'dockerhub-creds',
+            usernameVariable: 'DOCKER_USER',
+            passwordVariable: 'DOCKER_PASS'
+        )]) {
+            sh """
+                echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                docker push ${BACKEND_IMAGE}-${BUILD_TAG}
+                docker push ${FRONTEND_IMAGE}-${BUILD_TAG}
+                docker logout
+            """
         }
     }
 }
@@ -68,4 +73,5 @@ pipeline {
         }
     }
 }
+
 
