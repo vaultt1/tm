@@ -66,6 +66,14 @@ pipeline {
         }
     }
 
+    stage('Verification'){
+        steps{
+            sleep(time:1 , unit:'MINUTES')
+            sh "ip a"
+            sh " kubectl get all -n task-management"
+        }
+    }
+
     post {
         success {
             echo "✅ Deployment completed with BUILD_TAG=${BUILD_TAG}"
@@ -76,5 +84,6 @@ pipeline {
         }
     }
 }
+
 
 
