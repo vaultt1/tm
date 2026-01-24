@@ -69,10 +69,12 @@ pipeline {
     post {
         success {
             echo "✅ Deployment completed with BUILD_TAG=${BUILD_TAG}"
+            echo "Done"
         }
         failure {
             echo "❌ Deployment failed!"
         }
     }
 }
+
 
