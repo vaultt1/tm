@@ -64,16 +64,24 @@ pipeline {
                 }
             }
         }
-    
 
-        stage('Verification'){
-            steps{
-                sleep(time:1 , unit:'MINUTES')
+        stage('Verification') {
+            steps {
+                sleep(time: 1, unit: 'MINUTES')
                 sh "ip a"
-                sh " kubectl get all -n task-management"
+
+                withCredentials([
+                    file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG')
+                ]) {
+                    sh """
+                        export KUBECONFIG=\$KUBECONFIG
+                        kubectl get all -n ${K8S_NAMESPACE}
+                    """
+                }
             }
         }
     }
+
     post {
         success {
             echo "✅ Deployment completed with BUILD_TAG=${BUILD_TAG}"
@@ -84,7 +92,3 @@ pipeline {
         }
     }
 }
-
-
-
-
