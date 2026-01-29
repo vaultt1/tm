@@ -7,6 +7,7 @@ pipeline {
         DEPLOYMENT_NAME = "task-management-app"
         K8S_NAMESPACE   = "task-management"
         BUILD_TAG       = "${env.BUILD_NUMBER}-${GIT_COMMIT.substring(0,7)}"
+        NVD_API_KEY     = credentials('nvd-api-key') // Store your NVD API key in Jenkins credentials
     }
 
     stages {
@@ -17,11 +18,35 @@ pipeline {
             }
         }
 
-        stage('Trivy Filesystem Scan (Pre-Build)') {
+        stage('Dependency Check (OWASP)') {
             steps {
-                sh """
-                    trivy fs --severity CRITICAL --exit-code 0 --no-progress .
-                """
+                script {
+                    sh """
+                        # Install Dependency-Check CLI if not present
+                        if ! command -v dependency-check.sh &> /dev/null; then
+                            echo "Installing Dependency-Check CLI..."
+                            curl -L -o dependency-check.zip https://github.com/jeremylong/DependencyCheck/releases/download/v8.4.1/dependency-check-8.4.1-release.zip
+                            unzip dependency-check.zip -d dependency-check
+                            chmod +x dependency-check/dependency-check/bin/dependency-check.sh
+                        fi
+
+                        # Run Dependency-Check for Backend
+                        ./dependency-check/dependency-check/bin/dependency-check.sh \
+                            --project "Backend" \
+                            --scan ./Backend \
+                            --out ./dependency-check-reports/backend \
+                            --nvdApiKey ${NVD_API_KEY} \
+                            --format ALL
+
+                        # Run Dependency-Check for Frontend
+                        ./dependency-check/dependency-check/bin/dependency-check.sh \
+                            --project "Frontend" \
+                            --scan ./Frontend \
+                            --out ./dependency-check-reports/frontend \
+                            --nvdApiKey ${NVD_API_KEY} \
+                            --format ALL
+                    """
+                }
             }
         }
 
@@ -32,21 +57,23 @@ pipeline {
             }
         }
 
-        stage('Trivy Image Scan') {
+        stage('Trivy Scan Docker Images') {
             steps {
-                sh """
-                    trivy image \
-                      --severity HIGH,CRITICAL \
-                      --exit-code 1 \
-                      --no-progress \
-                      ${BACKEND_IMAGE}-${BUILD_TAG}
+                script {
+                    sh """
+                        # Install Trivy if not present
+                        if ! command -v trivy &> /dev/null; then
+                            echo "Installing Trivy..."
+                            curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh
+                        fi
 
-                    trivy image \
-                      --severity HIGH,CRITICAL \
-                      --exit-code 1 \
-                      --no-progress \
-                      ${FRONTEND_IMAGE}-${BUILD_TAG}
-                """
+                        # Scan Backend Image
+                        trivy image --exit-code 1 --severity HIGH,CRITICAL ${BACKEND_IMAGE}-${BUILD_TAG}
+
+                        # Scan Frontend Image
+                        trivy image --exit-code 1 --severity HIGH,CRITICAL ${FRONTEND_IMAGE}-${BUILD_TAG}
+                    """
+                }
             }
         }
 
@@ -93,6 +120,7 @@ pipeline {
         stage('Verification') {
             steps {
                 sleep(time: 1, unit: 'MINUTES')
+                sh "ip a"
                 withCredentials([
                     file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG')
                 ]) {
@@ -107,12 +135,11 @@ pipeline {
 
     post {
         success {
-            echo "✅ Secure Deployment completed with BUILD_TAG=${BUILD_TAG}"
+            echo "✅ Deployment completed with BUILD_TAG=${BUILD_TAG}"
+            echo "Done"
         }
         failure {
-            echo "❌ Pipeline blocked due to deployment failure"
+            echo "❌ Deployment failed!"
         }
     }
 }
-
-
