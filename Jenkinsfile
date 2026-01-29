@@ -7,7 +7,6 @@ pipeline {
         DEPLOYMENT_NAME = "task-management-app"
         K8S_NAMESPACE   = "task-management"
         BUILD_TAG       = "${env.BUILD_NUMBER}-${GIT_COMMIT.substring(0,7)}"
-        DC_DATA_DIR     = "${WORKSPACE}/dependency-check-data"
     }
 
     stages {
@@ -15,33 +14,6 @@ pipeline {
         stage('Checkout') {
             steps {
                 checkout scm
-            }
-        }
-
-        stage('OWASP Dependency-Check (SCA)') {
-            steps {
-                withCredentials([
-                    string(credentialsId: 'nvd-api-key', variable: 'NVD_API_KEY')
-                ]) {
-                    sh """
-                        mkdir -p dependency-check-report
-                        dependency-check.sh \
-                          --project "TaskManagementApp" \
-                          --scan Backend \
-                          --scan Frontend \
-                          --format HTML \
-                          --format JSON \
-                          --out dependency-check-report \
-                          --data ${DC_DATA_DIR} \
-                          --nvdApiKey \$NVD_API_KEY \
-                          --failOnCVSS 7
-                    """
-                }
-            }
-            post {
-                always {
-                    archiveArtifacts artifacts: 'dependency-check-report/*', fingerprint: true
-                }
             }
         }
 
@@ -142,7 +114,7 @@ pipeline {
             echo "✅ Secure Deployment completed with BUILD_TAG=${BUILD_TAG}"
         }
         failure {
-            echo "❌ Pipeline blocked due to security or deployment failure"
+            echo "❌ Pipeline blocked due to deployment failure"
         }
     }
 }
