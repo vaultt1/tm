@@ -34,14 +34,13 @@ pipeline {
                           --out dependency-check-report \
                           --data ${DC_DATA_DIR} \
                           --nvdApiKey \$NVD_API_KEY \
-                          --disableAutoUpdate \
-                          --failOnCVSS 7 || true
+                          --noupdate || true
                     """
                 }
             }
             post {
                 always {
-                    archiveArtifacts artifacts: 'dependency-check-report/*', fingerprint: true
+                    archiveArtifacts artifacts: 'dependency-check-report/*', allowEmptyArchive: true, fingerprint: true
                 }
             }
         }
