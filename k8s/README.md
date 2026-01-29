@@ -22,7 +22,33 @@ server {
     server_name _;  # catch all
 
     location / {
-        proxy_pass http://192.168.49.2:30995;  # Minikube IP + NodePort
+        proxy_pass http://192.168.49.2:30080;  # Minikube IP + NodePort
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+server {
+    listen 8082;
+
+    server_name _;  # catch all
+
+    location / {
+        proxy_pass http://192.168.49.2:30082;  # Minikube IP + NodePort
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+server {
+    listen 31186;
+
+    server_name _;  # catch all
+
+    location / {
+        proxy_pass http://192.168.49.2:31186;  # Minikube IP + NodePort
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
