@@ -142,6 +142,12 @@ kubectl config view --raw --flatten > kubeconfig.yaml
 
 ---
 
+
+Follow the instructions in tools/README.md
+
+
+---
+
 ## 🧩 Configure Jenkins Credentials
 
 In Jenkins UI:
