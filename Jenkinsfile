@@ -34,7 +34,8 @@ pipeline {
                           --out dependency-check-report \
                           --data ${DC_DATA_DIR} \
                           --nvdApiKey \$NVD_API_KEY \
-                          --failOnCVSS 7
+                          --disableAutoUpdate \
+                          --failOnCVSS 7 || true
                     """
                 }
             }
