@@ -7,6 +7,7 @@ pipeline {
         DEPLOYMENT_NAME = "task-management-app"
         K8S_NAMESPACE   = "task-management"
         BUILD_TAG       = "${env.BUILD_NUMBER}-${GIT_COMMIT.substring(0,7)}"
+        DC_DATA_DIR     = "${WORKSPACE}/dependency-check-data"
     }
 
     stages {
@@ -17,10 +18,67 @@ pipeline {
             }
         }
 
+        stage('OWASP Dependency-Check (SCA)') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'nvd-api-key', variable: 'NVD_API_KEY')
+                ]) {
+                    sh """
+                        mkdir -p dependency-check-report
+                        dependency-check.sh \
+                          --project "TaskManagementApp" \
+                          --scan Backend \
+                          --scan Frontend \
+                          --format HTML \
+                          --format JSON \
+                          --out dependency-check-report \
+                          --data ${DC_DATA_DIR} \
+                          --nvdApiKey \$NVD_API_KEY \
+                          --failOnCVSS 7
+                    """
+                }
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'dependency-check-report/*', fingerprint: true
+                }
+            }
+        }
+
+        stage('Trivy Filesystem Scan (Pre-Build)') {
+            steps {
+                sh """
+                    trivy fs \
+                      --severity HIGH,CRITICAL \
+                      --exit-code 1 \
+                      --no-progress \
+                      .
+                """
+            }
+        }
+
         stage('Build Docker Images') {
             steps {
                 sh "docker build -t ${BACKEND_IMAGE}-${BUILD_TAG} ./Backend"
                 sh "docker build -t ${FRONTEND_IMAGE}-${BUILD_TAG} ./Frontend"
+            }
+        }
+
+        stage('Trivy Image Scan') {
+            steps {
+                sh """
+                    trivy image \
+                      --severity HIGH,CRITICAL \
+                      --exit-code 1 \
+                      --no-progress \
+                      ${BACKEND_IMAGE}-${BUILD_TAG}
+
+                    trivy image \
+                      --severity HIGH,CRITICAL \
+                      --exit-code 1 \
+                      --no-progress \
+                      ${FRONTEND_IMAGE}-${BUILD_TAG}
+                """
             }
         }
 
@@ -67,7 +125,6 @@ pipeline {
         stage('Verification') {
             steps {
                 sleep(time: 1, unit: 'MINUTES')
-                sh "ip a"
                 withCredentials([
                     file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG')
                 ]) {
@@ -82,12 +139,10 @@ pipeline {
 
     post {
         success {
-            echo "✅ Deployment completed with BUILD_TAG=${BUILD_TAG}"
-            echo "Done"
+            echo "✅ Secure Deployment completed with BUILD_TAG=${BUILD_TAG}"
         }
         failure {
-            echo "❌ Deployment failed!"
+            echo "❌ Pipeline blocked due to security or deployment failure"
         }
     }
 }
-
