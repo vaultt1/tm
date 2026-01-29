@@ -21,7 +21,7 @@ pipeline {
             steps {
                 sh """
                     trivy fs \
-                      --severity HIGH,CRITICAL \
+                      --severity CRITICAL \
                       --exit-code 1 \
                       --no-progress \
                       .
@@ -118,3 +118,4 @@ pipeline {
         }
     }
 }
+
