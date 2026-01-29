@@ -180,4 +180,36 @@ kubectl get pods -n task-management
 kubectl get service -n task-management
 kubectl get deployment -n task-management
 kubectl get all -n task-management
-``
+```
+
+
+pipeline mein security scan stages (OWASP & Trivy) ko catchError() ke andar rakha gaya hai.
+Is wajah se agar vulnerabilities milti hain, Jenkins build ko FAIL nahi karta, balki UNSTABLE mark karke pipeline continue kar deta hai.
+Deploy stage par koi condition nahi hai jo UNSTABLE build ko rok sake, isliye deployment ho jata hai.
+
+UNSTABLE build ka matlab hota hai application kaam kar rahi hai,
+lekin security risks present hain.
+Isliye development environment mein allow kar sakte hain,
+par production mein deployment strictly block hona chahiye.
+
+hum deployment stage par condition laga denge ki sirf SUCCESS build hi deploy ho.
+UNSTABLE ya FAILED build Kubernetes par deploy nahi hoga.
+
+
+✅ Correct Fix (code bol ke dikha sakta hai):
+🔒 Deploy stage gate
+```
+stage('Deploy to Kubernetes') {
+    when {
+        expression { currentBuild.result == 'SUCCESS' }
+    }
+    steps {
+        // deployment steps
+    }
+}
+```
+
+
+UNSTABLE deployment ho raha hai kyunki catchError() pipeline ko fail nahi karta
+aur deploy stage par koi restriction nahi hai.
+Deployment gate laga ke issue solve ho jata hai.
