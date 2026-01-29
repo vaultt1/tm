@@ -2,100 +2,117 @@ pipeline {
     agent any
 
     environment {
-        BACKEND_IMAGE   = "someone15me/dp:backend"
-        FRONTEND_IMAGE  = "someone15me/dp:frontend"
-        DEPLOYMENT_NAME = "task-management-app"
-        K8S_NAMESPACE   = "task-management"
-        BUILD_TAG       = "${env.BUILD_NUMBER}-${GIT_COMMIT.substring(0,7)}"
-        DC_DATA_DIR     = "${WORKSPACE}/dependency-check-data"
+        NVD_API_KEY = credentials('NVD_API_KEY') // Jenkins credential for OWASP NVD
+        DOCKER_REGISTRY = "your-docker-registry"
+        APP_NAME = "taskmanagementapp"
+        KUBE_CONTEXT = "your-kube-context"
+        KUBE_NAMESPACE = "default"
+    }
+
+    options {
+        skipDefaultCheckout()
+        timestamps()
+        ansiColor('xterm')
     }
 
     stages {
-
-        stage('Checkout') {
+        // -----------------------------
+        stage('Checkout Source') {
             steps {
                 checkout scm
             }
         }
 
+        // -----------------------------
+        stage('Install Dependencies') {
+            steps {
+                dir('Backend') { sh 'npm install' }
+                dir('Frontend') { sh 'npm install' }
+            }
+        }
+
+        // -----------------------------
         stage('OWASP Dependency-Check (SCA)') {
             steps {
-                withCredentials([
-                    string(credentialsId: 'nvd-api-key', variable: 'NVD_API_KEY')
-                ]) {
-                    sh """
-                        mkdir -p dependency-check-report
-                        dependency-check.sh \
-                          --project "TaskManagementApp" \
-                          --scan Backend \
-                          --scan Frontend \
-                          --format HTML \
-                          --format JSON \
-                          --out dependency-check-report \
-                          --data ${DC_DATA_DIR} \
-                          --nvdApiKey \$NVD_API_KEY \
-                          --noupdate || true
-                    """
-                }
-            }
-            post {
-                always {
-                    archiveArtifacts artifacts: 'dependency-check-report/*', allowEmptyArchive: true, fingerprint: true
+                script {
+                    sh '''
+                    mkdir -p dependency-check-report
+                    dependency-check.sh \
+                        --project ${APP_NAME} \
+                        --scan Backend --scan Frontend \
+                        --format HTML --format JSON \
+                        --out dependency-check-report \
+                        --data ${WORKSPACE}/dependency-check-data \
+                        --nvdApiKey $NVD_API_KEY \
+                        --noupdate || true
+                    '''
                 }
             }
         }
 
+        stage('Archive SCA Reports') {
+            steps {
+                archiveArtifacts artifacts: 'dependency-check-report/*', allowEmptyArchive: true
+            }
+        }
+
+        // -----------------------------
         stage('Trivy Filesystem Scan (Pre-Build)') {
             steps {
-                sh """
-                    trivy fs \
-                      --severity HIGH,CRITICAL \
-                      --exit-code 1 \
-                      --no-progress \
-                      .
-                """
+                script {
+                    sh '''
+                    mkdir -p trivy-report
+                    trivy fs --severity HIGH,CRITICAL --exit-code 1 \
+                        --format json -o trivy-report/fs-report.json .
+                    '''
+                }
             }
         }
 
+        stage('Archive Trivy Reports') {
+            steps {
+                archiveArtifacts artifacts: 'trivy-report/*', allowEmptyArchive: true
+            }
+        }
+
+        // -----------------------------
         stage('Build Docker Images') {
             steps {
-                sh "docker build -t ${BACKEND_IMAGE}-${BUILD_TAG} ./Backend"
-                sh "docker build -t ${FRONTEND_IMAGE}-${BUILD_TAG} ./Frontend"
+                script {
+                    sh """
+                    docker build -t ${DOCKER_REGISTRY}/${APP_NAME}:backend Backend
+                    docker build -t ${DOCKER_REGISTRY}/${APP_NAME}:frontend Frontend
+                    """
+                }
             }
         }
 
         stage('Trivy Image Scan') {
             steps {
-                sh """
-                    trivy image \
-                      --severity HIGH,CRITICAL \
-                      --exit-code 1 \
-                      --no-progress \
-                      ${BACKEND_IMAGE}-${BUILD_TAG}
+                script {
+                    sh """
+                    mkdir -p trivy-image-report
+                    trivy image --severity HIGH,CRITICAL --exit-code 1 \
+                        --format json -o trivy-image-report/backend.json ${DOCKER_REGISTRY}/${APP_NAME}:backend
+                    trivy image --severity HIGH,CRITICAL --exit-code 1 \
+                        --format json -o trivy-image-report/frontend.json ${DOCKER_REGISTRY}/${APP_NAME}:frontend
+                    """
+                }
+            }
+        }
 
-                    trivy image \
-                      --severity HIGH,CRITICAL \
-                      --exit-code 1 \
-                      --no-progress \
-                      ${FRONTEND_IMAGE}-${BUILD_TAG}
-                """
+        stage('Archive Image Scan Reports') {
+            steps {
+                archiveArtifacts artifacts: 'trivy-image-report/*', allowEmptyArchive: true
             }
         }
 
         stage('Push Docker Images') {
             steps {
-                withCredentials([
-                    usernamePassword(
-                        credentialsId: 'dockerhub-creds',
-                        usernameVariable: 'DOCKER_USER',
-                        passwordVariable: 'DOCKER_PASS'
-                    )
-                ]) {
+                script {
                     sh """
-                        echo "\$DOCKER_PASS" | docker login -u "\$DOCKER_USER" --password-stdin
-                        docker push ${BACKEND_IMAGE}-${BUILD_TAG}
-                        docker push ${FRONTEND_IMAGE}-${BUILD_TAG}
-                        docker logout
+                    docker push ${DOCKER_REGISTRY}/${APP_NAME}:backend
+                    docker push ${DOCKER_REGISTRY}/${APP_NAME}:frontend
                     """
                 }
             }
@@ -103,35 +120,22 @@ pipeline {
 
         stage('Deploy to Kubernetes') {
             steps {
-                withCredentials([
-                    file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG')
-                ]) {
+                script {
                     sh """
-                        export KUBECONFIG=\$KUBECONFIG
-                        kubectl get nodes
-                        kubectl apply -f k8s/namespace.yaml
-                        kubectl apply -f k8s/service.yaml
-                        kubectl apply -f k8s/deployment.yaml -n ${K8S_NAMESPACE}
-                        kubectl set image deployment/${DEPLOYMENT_NAME} \
-                            backend=${BACKEND_IMAGE}-${BUILD_TAG} \
-                            frontend=${FRONTEND_IMAGE}-${BUILD_TAG} \
-                            -n ${K8S_NAMESPACE}
-                        kubectl rollout status deployment/${DEPLOYMENT_NAME} -n ${K8S_NAMESPACE}
+                    kubectl config use-context ${KUBE_CONTEXT}
+                    kubectl apply -f k8s/deployment.yaml -n ${KUBE_NAMESPACE}
+                    kubectl rollout status deployment/${APP_NAME}-backend -n ${KUBE_NAMESPACE}
+                    kubectl rollout status deployment/${APP_NAME}-frontend -n ${KUBE_NAMESPACE}
                     """
                 }
             }
         }
 
-        stage('Verification') {
+        stage('Post-Deployment Verification') {
             steps {
-                sleep(time: 1, unit: 'MINUTES')
-                withCredentials([
-                    file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG')
-                ]) {
-                    sh """
-                        export KUBECONFIG=\$KUBECONFIG
-                        kubectl get all -n ${K8S_NAMESPACE}
-                    """
+                script {
+                    echo "✅ Deployment complete. Running verification..."
+                    sh 'kubectl get pods -n ${KUBE_NAMESPACE}'
                 }
             }
         }
@@ -139,10 +143,13 @@ pipeline {
 
     post {
         success {
-            echo "✅ Secure Deployment completed with BUILD_TAG=${BUILD_TAG}"
+            echo "🎉 Pipeline completed successfully!"
         }
         failure {
-            echo "❌ Pipeline blocked due to security or deployment failure"
+            echo "❌ Pipeline failed. Check reports for details."
+        }
+        always {
+            cleanWs()
         }
     }
 }
